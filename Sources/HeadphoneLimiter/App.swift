@@ -111,6 +111,7 @@ struct MenuView: View {
                     Spacer()
                     Text(limitText).monospacedDigit().foregroundStyle(.secondary)
                 }
+                .help("Decibels below the output's full volume (0 dB).")
                 Slider(value: $limiter.limit, in: Limiter.limitRange, step: 1) {
                     Text("Maximum volume")
                 } minimumValueLabel: {
@@ -119,18 +120,9 @@ struct MenuView: View {
                     Image(systemName: "speaker.wave.3")
                 }
                 .labelsHidden()
-                Text("Decibels below the output's full volume (0 dB).")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
                 Toggle("Rescale the volume range", isOn: $limiter.rescale)
                     .padding(.top, 4)
-                Text(limiter.rescale
-                    ? "Volume keys run from mute up to the limit. Audio passes through this app, which needs audio recording permission."
-                    : "Volume above the limit is pulled back down.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                    .help("On: the volume keys run from mute up to the limit. Audio passes through this app, which needs audio recording permission. Off: volume above the limit is pulled back down.")
                 if let device = limiter.currentDevice {
                     AbsoluteLevel(limiter: limiter, device: device)
                 }
@@ -223,18 +215,19 @@ private struct AbsoluteLevel: View {
                         .frame(width: 44)
                     Text("Ω")
                 }
+                Spacer(minLength: 0)
+                Image(systemName: unitUncertain ? "exclamationmark.triangle" : "info.circle")
+                    .foregroundStyle(unitUncertain ? .orange : .secondary)
             }
-            Text(caption)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-            Text(Database.credit)
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
-                .fixedSize(horizontal: false, vertical: true)
         }
         .textFieldStyle(.roundedBorder)
         .padding(.top, 4)
+        .help(caption + "\n\n" + Database.credit)
+    }
+
+    /// True when the picked model's maker never said whether its figure is per milliwatt or per volt.
+    private var unitUncertain: Bool {
+        Database.headphone(named: limiter.sensitivities[device.uid]?.model).map { !$0.unitStated } ?? false
     }
 
     private var caption: String {
@@ -318,14 +311,21 @@ private struct DeviceRow: View {
             }
         }
         .toggleStyle(.checkbox)
+        .help(tooltip)
         .disabled(!device.canSetVolume)
     }
 
     private var detail: String {
-        guard device.canSetVolume else { return "\(device.transportLabel) · no software volume control, can't be limited" }
-        let volume = limiter.volumes[device.id].map { "now \(decibels(Double($0)))" } ?? "level unknown"
-        return "\(device.transportLabel) · \(volume)" + (device.hasDecibelControl ? "" : " (estimated)")
-            + (limiter.rescaledUIDs.contains(device.uid) ? " · rescaled" : "")
+        guard device.canSetVolume else { return "can't be limited" }
+        return limiter.volumes[device.id].map { decibels(Double($0)) } ?? "level unknown"
+    }
+
+    private var tooltip: String {
+        guard device.canSetVolume else { return "\(device.transportLabel) output with no software volume control, so it can't be limited." }
+        var text = "\(device.transportLabel) output. The figure is its current level relative to full volume"
+        text += device.hasDecibelControl ? "." : ", estimated because the device has no decibel control."
+        if limiter.rescaledUIDs.contains(device.uid) { text += " Its volume range is being rescaled." }
+        return text
     }
 }
 

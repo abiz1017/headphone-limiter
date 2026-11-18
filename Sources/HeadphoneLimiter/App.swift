@@ -108,10 +108,10 @@ struct MenuView: View {
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
                     Text("Maximum volume")
+                    InfoButton(text: "The loudest a limited output may get, in decibels below its full volume (0 dB).")
                     Spacer()
                     Text(limitText).monospacedDigit().foregroundStyle(.secondary)
                 }
-                .help("Decibels below the output's full volume (0 dB).")
                 Slider(value: $limiter.limit, in: Limiter.limitRange, step: 1) {
                     Text("Maximum volume")
                 } minimumValueLabel: {
@@ -120,9 +120,11 @@ struct MenuView: View {
                     Image(systemName: "speaker.wave.3")
                 }
                 .labelsHidden()
-                Toggle("Rescale the volume range", isOn: $limiter.rescale)
-                    .padding(.top, 4)
-                    .help("On: the volume keys run from mute up to the limit. Audio passes through this app, which needs audio recording permission. Off: volume above the limit is pulled back down.")
+                HStack {
+                    Toggle("Rescale the volume range", isOn: $limiter.rescale)
+                    InfoButton(text: "On: the volume keys run from mute up to the limit. Audio passes through this app, which needs audio recording permission.\n\nOff: volume above the limit is pulled back down.")
+                }
+                .padding(.top, 4)
                 if let device = limiter.currentDevice {
                     AbsoluteLevel(limiter: limiter, device: device)
                 }
@@ -132,7 +134,10 @@ struct MenuView: View {
             Divider()
 
             VStack(alignment: .leading, spacing: 8) {
-                Text("Limit these outputs").font(.subheadline).foregroundStyle(.secondary)
+                HStack {
+                    Text("Limit these outputs").font(.subheadline).foregroundStyle(.secondary)
+                    InfoButton(text: "Ticked outputs are held to the limit. Each shows its current level relative to full volume; \"est.\" means the device has no decibel control, so the figure is estimated. Outputs with no software volume control can't be limited.")
+                }
                 ForEach(limiter.devices) { device in
                     DeviceRow(limiter: limiter, device: device)
                 }
@@ -201,9 +206,9 @@ private struct AbsoluteLevel: View {
                 }
             )
             HStack(spacing: 6) {
-                Text("Sensitivity")
+                Text("Sensitivity").fixedSize()
                 TextField("e.g. 100", value: sensitivity.value, format: .number)
-                    .frame(width: 60)
+                    .frame(width: 50)
                 Picker("Unit", selection: sensitivity.perMilliwatt) {
                     Text("dB/V").tag(false)
                     Text("dB/mW").tag(true)
@@ -216,13 +221,11 @@ private struct AbsoluteLevel: View {
                     Text("Ω")
                 }
                 Spacer(minLength: 0)
-                Image(systemName: unitUncertain ? "exclamationmark.triangle" : "info.circle")
-                    .foregroundStyle(unitUncertain ? .orange : .secondary)
+                InfoButton(text: caption + "\n\n" + Database.credit, warning: unitUncertain)
             }
         }
         .textFieldStyle(.roundedBorder)
         .padding(.top, 4)
-        .help(caption + "\n\n" + Database.credit)
     }
 
     /// True when the picked model's maker never said whether its figure is per milliwatt or per volt.
@@ -311,21 +314,38 @@ private struct DeviceRow: View {
             }
         }
         .toggleStyle(.checkbox)
-        .help(tooltip)
         .disabled(!device.canSetVolume)
     }
 
     private var detail: String {
-        guard device.canSetVolume else { return "can't be limited" }
-        return limiter.volumes[device.id].map { decibels(Double($0)) } ?? "level unknown"
+        guard device.canSetVolume else { return "\(device.transportLabel) · can't be limited" }
+        let volume = limiter.volumes[device.id].map { decibels(Double($0)) } ?? "level unknown"
+        return "\(device.transportLabel) · \(volume)" + (device.hasDecibelControl ? "" : " est.")
+            + (limiter.rescaledUIDs.contains(device.uid) ? " · rescaled" : "")
     }
+}
 
-    private var tooltip: String {
-        guard device.canSetVolume else { return "\(device.transportLabel) output with no software volume control, so it can't be limited." }
-        var text = "\(device.transportLabel) output. The figure is its current level relative to full volume"
-        text += device.hasDecibelControl ? "." : ", estimated because the device has no decibel control."
-        if limiter.rescaledUIDs.contains(device.uid) { text += " Its volume range is being rescaled." }
-        return text
+/// A small info icon that shows its explanation in a popover when clicked.
+private struct InfoButton: View {
+    let text: String
+    var warning = false
+    @State private var shown = false
+
+    var body: some View {
+        Button {
+            shown.toggle()
+        } label: {
+            Image(systemName: warning ? "exclamationmark.triangle" : "info.circle")
+                .foregroundStyle(warning ? .orange : .secondary)
+        }
+        .buttonStyle(.plain)
+        .popover(isPresented: $shown, arrowEdge: .trailing) {
+            Text(text)
+                .font(.callout)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(width: 260, alignment: .leading)
+                .padding(12)
+        }
     }
 }
 

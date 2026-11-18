@@ -15,7 +15,7 @@ A macOS menu bar app that caps how loud your headphones can get.
 ## Build and run
 
 ```sh
-git clone <this repository>
+git clone https://github.com/abiz1017/headphone-limiter.git
 cd headphone-limiter
 ./build.sh --install      # builds and copies HeadphoneLimiter.app to /Applications
 open /Applications/HeadphoneLimiter.app
